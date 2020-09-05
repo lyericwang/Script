@@ -1,7 +1,7 @@
 /*
 爱奇艺会员签到脚本
 
-更新时间: 2020.8.5 17:00
+更新时间: 2020.9.1
 脚本兼容: QuantumultX, Surge4, Loon, JsBox, Node.js
 电报频道: @NobyDa
 问题反馈: @NobyDa_bot
@@ -14,24 +14,25 @@
 如果使用Node.js, 需自行安装'request'模块. 例: npm install request -g
 
 JsBox, Node.js用户抓取Cookie说明：
-开启抓包, 打开爱奇艺App后(AppStore中国区)，点击"我的" 返回抓包App 搜索url关键字: authcookie= 提取字母数字混合字段, 到&结束, 填入以下单引号内即可.
+开启抓包, 打开爱奇艺App后(AppStore中国区)，点击"我的" 返回抓包App 搜索请求头关键字 psp_cki= 或 P00001= 或 authcookie=
+提取字母数字混合字段, 到&结束, 填入以下单引号内即可.
 */
 
 var cookie = ''
 
 /*********************
-QuantumultX 本地脚本配置:
+QuantumultX 远程脚本配置:
 **********************
 [task_local]
 # 爱奇艺会员签到
-0 9 * * * iQIYI.js
+0 9 * * * https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js
 
 [rewrite_local]
 # 获取Cookie
-https?:\/\/.*\.iqiyi\.com\/.*authcookie= url script-request-header iQIYI.js
+^https?:\/\/iface\d\.iqiyi\.com\/ url script-request-header https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js
 
 [mitm] 
-hostname= *.iqiyi.com
+hostname= iface?.iqiyi.com
 
 **********************
 Surge 4.2.0+ 脚本配置:
@@ -39,10 +40,10 @@ Surge 4.2.0+ 脚本配置:
 [Script]
 爱奇艺签到 = type=cron,cronexp=0 9 * * *,script-path=https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js
 
-爱奇艺获取Cookie = type=http-request,pattern=https?:\/\/.*\.iqiyi\.com\/.*authcookie=,script-path=https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js
+爱奇艺获取Cookie = type=http-request,pattern=^https?:\/\/iface\d\.iqiyi\.com\/,script-path=https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js
 
 [MITM] 
-hostname= *.iqiyi.com
+hostname= iface?.iqiyi.com
 
 ************************
 Loon 2.1.0+ 脚本配置:
@@ -53,10 +54,10 @@ Loon 2.1.0+ 脚本配置:
 cron "0 9 * * *" script-path=https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js
 
 # 获取Cookie
-http-request https?:\/\/.*\.iqiyi\.com\/.*authcookie= script-path=https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js
+http-request ^https?:\/\/iface\d\.iqiyi\.com\/ script-path=https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js
 
 [Mitm] 
-hostname= *.iqiyi.com
+hostname= iface?.iqiyi.com
 
 */
 
@@ -158,8 +159,8 @@ function Lottery(s) {
           const Details = LogDetails ? `response:\n${data}` : ''
           $nobyda.last = data.match(/(机会|已经)用完/) ? true : false
           if (obj.awardName && obj.code == 0) {
-            $nobyda.data += `\n抽奖成功: ${obj.awardName.replace(/《.+》/, "未中奖")} 🎉`
-            console.log(`爱奇艺-抽奖成功: ${obj.awardName.replace(/《.+》/, "未中奖")} 🎉 (${$nobyda.times}) ${Details}`)
+            $nobyda.data += !$nobyda.last ? `\n抽奖成功: ${obj.awardName.replace(/《.+》/, "未中奖")} 🎉` : `\n抽奖失败: 今日已抽奖 ⚠️`
+            console.log(`爱奇艺-抽奖明细: ${obj.awardName.replace(/《.+》/, "未中奖")} 🎉 (${$nobyda.times}) ${Details}`)
           } else if (data.match(/\"errorReason\"/)) {
             msg = data.match(/msg=.+?\)/) ? data.match(/msg=(.+?)\)/)[1].replace(/用户(未登录|不存在)/, "Cookie无效") : ""
             $nobyda.data += `\n抽奖失败: ${msg || `未知错误`} ⚠️`
@@ -183,29 +184,28 @@ function Lottery(s) {
 }
 
 function GetCookie() {
-  var iQIYI = $request.url.match(/authcookie=([A-Za-z0-9]+)/);
+  var CKA = $request.url.match(/(psp_cki=|P00001=|authcookie=)([A-Za-z0-9]+)/)
+  var CKB = JSON.stringify($request.headers).match(/(psp_cki=|P00001=|authcookie=)([A-Za-z0-9]+)/)
+  var iQIYI = CKA || CKB || null
+  var RA = $nobyda.read("CookieQY")
   if (iQIYI) {
-    if ($nobyda.read("CookieQY")) {
-      if ($nobyda.read("CookieQY") != iQIYI[1]) {
-        var cookie = $nobyda.write(iQIYI[1], "CookieQY");
-        if (!cookie) {
-          $nobyda.notify("更新爱奇艺签到Cookie失败‼️", "", "")
-        } else {
-          $nobyda.notify("更新爱奇艺签到Cookie成功 🎉", "", "")
-        }
+    if (RA != iQIYI[2]) {
+      var OldTime = $nobyda.read("CookieQYTime")
+      if (!$nobyda.write(iQIYI[2], "CookieQY")) {
+        $nobyda.notify(`${RA?`更新`:`首次写入`}爱奇艺签到Cookie失败‼️`, "", "")
       } else {
-        console.log("爱奇艺-与本机储存Cookie相同, 跳过写入 ‼️")
+        if (!OldTime || OldTime && (Date.now() - OldTime) / 1000 >= 21600) {
+          $nobyda.write(JSON.stringify(Date.now()), "CookieQYTime")
+          $nobyda.notify(`${RA?`更新`:`首次写入`}爱奇艺签到Cookie成功 🎉`, "", "")
+        } else {
+          console.log(`\n更新爱奇艺Cookie成功! 🎉\n检测到频繁通知, 已转为输出日志`)
+        }
       }
     } else {
-      var cookie = $nobyda.write(iQIYI[1], "CookieQY");
-      if (!cookie) {
-        $nobyda.notify("首次写入爱奇艺Cookie失败‼️", "", "")
-      } else {
-        $nobyda.notify("首次写入爱奇艺Cookie成功 🎉", "", "")
-      }
+      console.log("\n爱奇艺-与本机储存Cookie相同, 跳过写入 ⚠️")
     }
   } else {
-    $nobyda.notify("写入爱奇艺Cookie失败", "", "URL不匹配 ‼️")
+    console.log("\n爱奇艺-请求不含Cookie, 跳过写入 ‼️")
   }
 }
 
@@ -295,7 +295,7 @@ function nobyda() {
     return console.log('\n签到用时: ' + end + ' 秒')
   }
   const done = (value = {}) => {
-    if (isQuanX) isRequest ? $done(value) : null
+    if (isQuanX) return $done(value)
     if (isSurge) isRequest ? $done(value) : $done()
   }
   return {
